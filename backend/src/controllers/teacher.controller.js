@@ -3,11 +3,28 @@ import Student from '../models/student.js'
 import LeaveRequest from '../models/leaveRequest.js'
 import Timetable from '../models/timetable.js'
 
+export async function listMySections(req, res) {
+  try {
+    // Sections where teacher is owner or present in user's classes
+    const teacherId = req.currentUser._id
+    const sections = await ClassSection.find({ $or: [ { teacher: teacherId }, { _id: { $in: req.currentUser.classes || [] } } ] })
+      .select({ className: 1, sectionName: 1 })
+      .sort({ className: 1, sectionName: 1 })
+      .lean()
+    return res.json({ sections })
+  } catch (e) {
+    return res.status(500).json({ message: 'Server error' })
+  }
+}
+
 export async function listStudents(req, res) {
   try {
     const classSectionId = req.query.classSectionId || (req.currentUser?.classes?.[0])
     if (!classSectionId) return res.status(400).json({ message: 'classSectionId required' })
-    const section = await ClassSection.findById(classSectionId).populate('students').lean()
+    // Enforce teacher access to this section
+    const section = await ClassSection.findOne({ _id: classSectionId, $or: [ { teacher: req.currentUser._id }, { _id: { $in: req.currentUser.classes || [] } } ] })
+      .populate('students')
+      .lean()
     if (!section) return res.status(404).json({ message: 'ClassSection not found' })
     return res.json({ classSectionId, students: section.students })
   } catch (e) {

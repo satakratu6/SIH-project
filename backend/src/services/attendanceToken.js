@@ -1,37 +1,26 @@
-import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
 
-// In-memory token store: token -> { sessionId, expiresAt }
-const tokenStore = new Map()
-// Track intervals per session
+// Track intervals per session for rotation
 const sessionIntervals = new Map()
 
-function generateToken() {
-  return crypto.randomBytes(16).toString('hex')
-}
-
-function saveTokenForSession(sessionId, token) {
-  const expiresAt = Date.now() + 60 * 1000
-  tokenStore.set(token, { sessionId, expiresAt })
-}
-
-function cleanupExpiredTokens() {
-  const now = Date.now()
-  for (const [tok, meta] of tokenStore.entries()) {
-    if (meta.expiresAt <= now) tokenStore.delete(tok)
-  }
+function signToken(sessionId) {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('JWT_SECRET not set')
+  // 60s lifetime
+  return jwt.sign({ sessionId: String(sessionId) }, secret, { expiresIn: '60s' })
 }
 
 export async function startTokenRotation(io, sessionId) {
-  async function rotate() {
-    const token = generateToken()
-    saveTokenForSession(sessionId, token)
-    cleanupExpiredTokens()
+  function rotateOnce() {
+    const token = signToken(sessionId)
     io.to(`session:${sessionId}`).emit('attendance-token', { sessionId, token })
+    return token
   }
 
-  await rotate()
-  const timer = setInterval(rotate, 60 * 1000)
+  const firstToken = rotateOnce()
+  const timer = setInterval(rotateOnce, 60 * 1000)
   sessionIntervals.set(sessionId, timer)
+  return firstToken
 }
 
 export function stopTokenRotation(sessionId) {
@@ -43,14 +32,12 @@ export function stopTokenRotation(sessionId) {
 }
 
 export async function validateScanToken(token) {
-  cleanupExpiredTokens()
-  const meta = tokenStore.get(token)
-  if (!meta) return null
-  if (meta.expiresAt <= Date.now()) {
-    tokenStore.delete(token)
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    return decoded?.sessionId || null
+  } catch (_e) {
     return null
   }
-  return meta.sessionId
 }
 
 

@@ -8,6 +8,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import { connectToDatabase } from './config/database.js';
 import authRouter from './routes/auth.routes.js';
 import teacherRouter from './routes/teacher.routes.js';
+import publicRouter from './routes/public.routes.js';
+import adminRouter from './routes/admin.routes.js';
 
 dotenv.config();
 
@@ -33,6 +35,8 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/teacher', teacherRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api', publicRouter);
 
 io.on('connection', (socket) => {
   socket.on('join-session', (sessionId) => {
