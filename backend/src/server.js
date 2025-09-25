@@ -6,7 +6,6 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { Server as SocketIOServer } from 'socket.io';
 import { connectToDatabase } from './config/database.js';
-import { getRedis } from './config/redis.js';
 import authRouter from './routes/auth.routes.js';
 import teacherRouter from './routes/teacher.routes.js';
 
@@ -45,7 +44,6 @@ const PORT = Number(process.env.PORT || 5000);
 
 async function bootstrap() {
   await connectToDatabase();
-  await getRedis();
   server.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
   });
